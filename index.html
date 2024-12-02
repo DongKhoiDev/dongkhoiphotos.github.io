@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <h1>Đánh dấu ảnh yêu thích</h1>
+  <div style="text-align: center; margin-bottom: 20px;">
+    <input type="text" id="driveUrl" placeholder="Dán liên kết Google Drive của bạn"
+      style="width: 70%; padding: 10px; font-size: 16px;">
+    <button onclick="fetchAlbum()" style="padding: 10px 20px; font-size: 16px; margin-left: 10px;">Tải Album</button>
+  </div>
+  <div class="album" id="images"></div>
+  <div class="floating-buttons">
+    <button onclick="saveFavorites()">Lưu yêu thích</button>
+  </div>
+
+  <style>
+    body {
+      font-family: "Google Sans", sans-serif;
+      background-color: #f8f9fa;
+      margin: 0;
+      padding: 0;
+    }
+
+    h1 {
+      text-align: center;
+      color: #333;
+      font-size: 24px;
+      padding: 20px;
+    }
+
+    .album {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 15px;
+      padding: 20px;
+      margin: 0 auto;
+      max-width: 1200px;
+    }
+
+    .image-container {
+      position: relative;
+      overflow: hidden;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      cursor: pointer;
+      transition: transform 0.2s ease-in-out;
+    }
+
+    .image-container:hover {
+      transform: scale(1.02);
+    }
+
+    img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: cover;
+      transition: opacity 0.3s ease-in-out;
+    }
+
+    .heart-checkbox {
+      display: none;
+    }
+
+    .heart-checkbox+label::before {
+      content: '🤍';
+      font-size: 24px;
+      color: #e74c3c;
+      position: absolute;
+      bottom: 10px;
+      right: 10px;
+      cursor: pointer;
+    }
+
+    .heart-checkbox:checked+label::before {
+      content: '❤️';
+    }
+
+    /* Fixed buttons */
+    .floating-buttons {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      z-index: 10;
+    }
+
+    .floating-buttons a,
+    .floating-buttons button {
+      display: block;
+      padding: 10px 20px;
+      font-size: 16px;
+      text-align: center;
+      text-decoration: none;
+      border-radius: 5px;
+      color: #fff;
+      background-color: #007bff;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+      transition: background-color 0.3s ease;
+    }
+
+    .floating-buttons a:hover,
+    .floating-buttons button:hover {
+      background-color: #0056b3;
+    }
+
+
+    button:hover {
+      background-color: #0056b3;
+    }
+
+    /* Modal styles */
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      overflow: auto;
+      background-color: rgba(0, 0, 0, 0.9);
+    }
+
+    .modal-content {
+      display: block;
+      max-width: 90%;
+      max-height: 90%;
+      margin: auto;
+      margin-top: 5%;
+      border-radius: 8px;
+    }
+
+    .close {
+      position: absolute;
+      top: 20px;
+      right: 30px;
+      color: #fff;
+      font-size: 40px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    .close:hover {
+      color: #bbb;
+    }
+
+    .floating-buttons {
+      position: fixed;
+      bottom: 20px;
+      /* Cách đáy trang 20px */
+      right: 20px;
+      /* Cách cạnh phải 20px */
+      display: flex;
+      flex-direction: column;
+      /* Sắp xếp nút theo chiều dọc */
+      gap: 10px;
+      /* Khoảng cách giữa các nút */
+      z-index: 10;
+      /* Đảm bảo nút luôn nằm trên các thành phần khác */
+    }
+
+    .floating-buttons a,
+    .floating-buttons button {
+      display: block;
+      padding: 10px 20px;
+      font-size: 16px;
+      text-align: center;
+      text-decoration: none;
+      border-radius: 5px;
+      color: #fff;
+      background-color: #007bff;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+      transition: background-color 0.3s ease;
+    }
+
+    .floating-buttons a:hover,
+    .floating-buttons button:hover {
+      background-color: #0056b3;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>Album ảnh yêu thích</h1>
+  <div class="album" id="images"></div>
+
+  <!-- Floating Buttons -->
+  <div class="floating-buttons">
+    <button onclick="saveFavorites()">Lưu yêu thích</button>
+  </div>
+
+
+  <!-- Modal -->
+  <div id="myModal" class="modal">
+    <span class="close" onclick="closeModal()">&times;</span>
+    <img id="img01" class="modal-content" alt="Hình ảnh">
+    <div id="caption"></div>
+  </div>
+  <script>
+    function doGet() {
+      return HtmlService.createHtmlOutputFromFile('index.html')
+        .setTitle('Sắp xếp ảnh theo tên');
+    } 
+
+    function getImages(folderId) {
+      var folder = DriveApp.getFolderById(folderId);
+      var files = folder.getFiles();
+      var images = [];
+
+      while (files.hasNext()) {
+        var file = files.next();
+        if (file.getMimeType().startsWith('image/')) {
+          images.push({
+            id: file.getId(),
+            name: file.getName(),
+            url: "https://lh3.google.com/u/0/d/" + file.getId()
+          });
+        }
+      }
+
+      // Sắp xếp theo tên file (A → Z)
+      images.sort(function (a, b) {
+        return a.name.localeCompare(b.name);
+      });
+
+      return images;
+    }
+
+
+    function saveFavorites(favorites) {
+      const folderId = favorites[0]?.albumId; // Dùng albumId để lấy tên thư mục từ ảnh đầu tiên
+      const folder = DriveApp.getFolderById(folderId);
+      const albumName = folder.getName(); // Lấy tên thư mục
+
+      const sheet = SpreadsheetApp.openById('1hCCJLlTY-041AjIv9z-ms5LgspGr_8L-t-YJDYvjtx0').getActiveSheet();
+
+      // Lưu tên album vào hàng đầu tiên
+      sheet.appendRow([`Tên album: ${albumName}`]);
+
+      // Ghi tiêu đề cột
+      sheet.appendRow(["Tên Ảnh", "URL Ảnh"]);
+
+      // Lưu từng ảnh yêu thích
+      favorites.forEach(fav => {
+        sheet.appendRow([fav.name, fav.url]);
+      });
+    }
+
+
+    function saveFavorites(favorites) {
+      var sheet = SpreadsheetApp.openById('1hCCJLlTY-041AjIv9z-ms5LgspGr_8L-t-YJDYvjtx0').getActiveSheet();
+      // Ghi tiêu đề cột
+      sheet.appendRow(["Tên Ảnh", "URL Ảnh"]);
+
+      favorites.forEach(function (fav) {
+        sheet.appendRow([fav.name, fav.url]);
+      });
+    }
+
+    function extractFolderId(driveUrl) {
+      const match = driveUrl.match(/\/folders\/([a-zA-Z0-9-_]+)/);
+      return match ? match[1] : null;
+    }
+
+    function fetchAlbum() {
+      const driveUrl = document.getElementById("driveUrl").value;
+      const folderId = extractFolderId(driveUrl);
+
+      if (!folderId) {
+        alert("URL không hợp lệ. Vui lòng kiểm tra lại!");
+        return;
+      }
+
+      google.script.run.withSuccessHandler(renderImages).getImages(folderId);
+    }
+
+
+    function renderImages(images) {
+      const container = document.getElementById("images");
+      container.innerHTML = '';
+      if (images.length === 0) {
+        container.innerHTML = '<p>Không có hình ảnh nào trong album.</p>';
+        return;
+      }
+      images.forEach((image) => {
+        const div = document.createElement('div');
+        div.className = 'image-container';
+        div.innerHTML = `
+          <img src="${image.url}" alt="${image.name}" onclick="openModal('${image.url}', '${image.name}')">
+          <input type="checkbox" id="heart-${image.id}" class="heart-checkbox" data-name="${image.name}" data-url="${image.url}">
+          <label for="heart-${image.id}"></label>
+        `;
+        container.appendChild(div);
+      });
+    }
+
+    function saveFavorites() {
+
+      const checkboxes = document.querySelectorAll("input[type='checkbox']:checked");
+      const favorites = Array.from(checkboxes).map((cb) => {
+        const name = cb.getAttribute("data-name");
+        const url = cb.getAttribute("data-url");
+        const numberOnly = name.match(/\d+/g); // Trích xuất phần số từ tên file
+
+
+        return {
+          name: numberOnly ? numberOnly.join('') : '', // Chỉ lưu phần số
+          url: url,
+        };
+      });
+      google.script.run.saveFavorites(favorites);
+      alert("Đã lưu danh sách yêu thích!");
+    }
+
+    function openModal(url, name) {
+      const modal = document.getElementById("myModal");
+      const modalImg = document.getElementById("img01");
+      const captionText = document.getElementById("caption");
+      const downloadButton = document.getElementById("downloadButton");
+
+      modal.style.display = "block";
+      modalImg.src = url; // Hiển thị ảnh
+      captionText.innerHTML = name; // Gán tên ảnh làm chú thích
+    }
+
+    // Đóng modal khi nhấp ra ngoài
+    const modal = document.getElementById("myModal");
+    modal.onclick = function (event) {
+      if (event.target === modal) {
+        closeModal();
+      }
+    };
+
+    // Đóng modal khi nhấn vào nút "X"
+    function closeModal() {
+      modal.style.display = "none";
+    }
+
+
+    loadImages();
+  </script>
+</body>
+
+</html>
